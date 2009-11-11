@@ -1,0 +1,329 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" xmlns:s="library://ns.adobe.com/flex/spark" xmlns:mx="library://ns.adobe.com/flex/halo" xmlns:local="*"
+					   width="443" height="718" backgroundColor="#F6FEFF"
+					   applicationComplete="addListeners()">
+	
+	<fx:Script>
+		<![CDATA[
+			import com.flashartofwar.fcss.styles.Style;
+			import com.flashartofwar.fcss.stylesheets.FStyleSheet;
+			import com.flashartofwar.fcss.utils.CSSTidyUtil;
+			
+			import flash.events.Event;
+			import flash.events.IOErrorEvent;
+			import flash.events.MouseEvent;
+			import flash.net.FileFilter;
+			import flash.net.URLLoader;
+			import flash.net.URLRequest;
+			
+			import mx.containers.TabNavigator;
+			import mx.containers.VBox;
+			import mx.controls.Alert;
+			
+			import spark.components.NavigatorContent;
+			
+			private var isURL : Boolean = true;
+			private var cssFile : File;
+			
+			[Bindable]
+			private var cssText : String = "";
+			[Bindable]
+			private var speedText : String = "";
+			
+			private var styleSheet : FStyleSheet;
+
+			private static const BREAK:String = "--------------------------------------------";
+			
+			private function addListeners():void
+			{
+				loadButton.addEventListener(MouseEvent.CLICK, onLoadButtonClick, false, 0 , true);
+			}
+			
+			private function browseForFile():void
+			{
+				cssFile = new File();
+				cssFile.addEventListener(Event.SELECT, onFileSelected, false, 0, true);
+				cssFile.browseForOpen("Select CSS File", [new FileFilter("CSS File", ".css")]);
+			}
+			
+			private function setupLoadFromFile(file : File):void
+			{
+				isURL = false;
+				fileInputField.text = file.nativePath;
+			}
+			
+			private function loadFromFile():void
+			{	
+				cssFile.addEventListener(Event.COMPLETE, onFileLoaded, false, 0 , true);
+				cssFile.load();
+				isURL = true;
+			}
+			
+			private function loadFromURL(url : String):void
+			{
+				if(url == null) Alert.show("Please Enter the URL to the CSS file for select one from your computer.", "Oops No File Specified.");
+				var loader:URLLoader = new URLLoader();
+				var request:URLRequest = new URLRequest(url);
+				
+				loader.addEventListener(IOErrorEvent.IO_ERROR, onIOErrorEvent, false, 0, true);
+				loader.addEventListener(Event.COMPLETE, onURLLoaded, false, 0, true);
+				loader.load(request);
+			}
+			
+			private function populateEditorPane(css : String):void
+			{
+				cssText = css;
+			}
+			
+			private function saveFile():void
+			{
+				var savedCSSFile : File = new File();
+				savedCSSFile.addEventListener(Event.COMPLETE, onFileSaved, false, 0, true);
+				
+				if(tidyFlag.selected)
+				{
+					savedCSSFile.save(CSSTidyUtil.tidy(cssEditorField.text), "editedCSS.css");
+				}
+				else
+				{
+					savedCSSFile.save(cssEditorField.text, "editedCSS.css");
+				}
+			}
+			
+			private function checkCSS(cssData:String):String
+			{
+				var regEx:RegExp = /(\s)/;
+				var css:String;
+				
+				if(cssData.search(regEx) == 0)
+				{
+					css = cssData;
+				}
+				else
+				{
+					css = CSSTidyUtil.format(cssData);
+				}
+				
+				return css;
+			}
+			
+			private function populateSelectors(css:String):void
+			{
+				var stylesSheet:FStyleSheet = new FStyleSheet();
+				var styles:Array;
+				var len:Number;
+				var i:int = 0;
+				
+				styleSheet.parseCSS(css);
+				styles = styleSheet.styleNames;
+				len = styles.length;
+				
+				for(i ; i < len ; i++)
+				{
+					trace(styles[i]);
+					addField(styles[i]);
+					}
+				}
+			
+			private function addField(name : String):void
+			{
+				var container:VBox = new VBox();
+				//var dataGrid:DataGrid = new DataGrid();
+				
+				container.label = name;
+				container.width = selectorsField.width;
+				container.height = 10;
+				
+				//form.addChild(dataGrid);
+				selectorsField.addChild(container);
+			}
+			
+			
+			//---------------------------------------------------------------------
+			//-------------------------EventHandlers-------------------------------
+			//---------------------------------------------------------------------
+			
+			protected function onIOErrorEvent(event : IOErrorEvent):void
+			{
+				Alert.show("URL is not valid.", "Oops URL doesn't exist.");
+			}
+			
+			protected function onFileSelected(event : Event):void
+			{
+				setupLoadFromFile(event.target as File);
+			}
+			
+			protected function onBrowseClick(event : Event):void
+			{
+				browseForFile();
+			}
+			
+			protected function onSaveClick(event : Event):void
+			{
+				saveFile();
+			}
+			
+			protected function onLoadButtonClick(event : Event):void
+			{
+				(!isURL) ? loadFromFile() : loadFromURL(fileInputField.text);
+			}
+			
+			protected function onFileLoaded(event : Event):void
+			{
+				var css:String = checkCSS((event.target as File).data.toString());
+				fileInputField.text = "";
+				startSpeedTest(css);
+				populateEditorPane(css);
+				populateSelectors(css);
+			}
+			
+			protected function onFileSaved(event : Event):void
+			{
+				Alert.show("CSS File Saved.", "Save Complete.");
+			}
+			
+			protected function onURLLoaded(event : Event):void
+			{
+				var css:String = checkCSS((event.target as URLLoader).data.toString());
+				fileInputField.text = "";
+				startSpeedTest(css);
+				populateEditorPane(css);
+			}
+			
+			
+			//---------------------------------------------------------------------
+			//-------------------------SpeedTest-------------------------------
+			//---------------------------------------------------------------------
+			
+			protected function parseCamoCSS(css : String):void
+			{
+				//var tidyCSS:String = CSSTidyUtil.tidy(rawCSS);
+				styleSheet = new FStyleSheet();	
+				speedText = BREAK+"\n* Test FCSS Pre-parser *\n"+BREAK;
+				// parse css	
+				var t:Number = getTimer();
+				
+				
+				styleSheet.parseCSS(css, true);
+				t = (getTimer()-t);
+				var strDebug:String;
+				strDebug = "\n\tParsing time: " + t + " ms";
+				speedText += strDebug += "\n\tBytes: " + css.length + " (" + Math.round(css.length / t) + " bytes/ms)";
+			}
+			
+			private function startSpeedTest(css : String) : void
+			{
+				parseCamoCSS(css);
+				requestAllstyles();
+				requestAllstyles();
+				
+			}
+			
+			protected function requestAllstyles():void
+			{
+				speedText += "\n"+BREAK+"\n* Test Requesting Every style *\n"+BREAK;
+				
+				var t:Number = getTimer();
+				var strDebug:String;
+				
+				var styles:Array = styleSheet.styleNames;
+				var total:int = styles.length;
+				var i:int;
+				var style:Style;
+				var styleRequestTime:Number;
+				var styleName:String;
+				var requestTimes:Number = 0;
+				var longestRequest:Number = 0;
+				var highestRequest:Number = 0;
+				var results:Array = [];
+				
+				for(i = 0; i < total; i++)
+				{
+					styleName = styles[i];
+					styleRequestTime = getTimer();
+					style = styleSheet.getStyle(styleName);
+					styleRequestTime = (getTimer()-styleRequestTime);
+					if(styleRequestTime > 0)
+						results.push({time:styleRequestTime, name:styleName});
+					
+					requestTimes += styleRequestTime;
+					
+				}
+				t = (getTimer()-t);
+				strDebug = "\n\tTotal time to request "+(total-1)+" styles time: " + t + " ms";
+				speedText += (strDebug);
+				
+				speedText += "\n\t"+(styles.length - results.length)+"/"+styles.length+" styles took 0 ms";
+				
+				var average:Number = results.length/styles.length;
+				
+				speedText += ("\n\tAverage Style Request Time", average, "ms");
+				results.sortOn("time", Array.NUMERIC | Array.DESCENDING); 
+				
+				var average2:Number = ((requestTimes/total-1) < 0) ? 0 : (requestTimes/total-1);
+				
+				speedText += ("\n\tShortest Request",results[results.length - 1].time, results[results.length - 1].name," (Styles that take 0 ms do not count.)");
+				speedText += ("\n\tLongest Request",results[0].time, results[0].name);
+				
+				var oneSecondRequests:Number = 0; 
+				var longerStyles:String ="";
+				for(i = 0; i < results.length; i++)
+				{
+					if(results[i].time > 1)
+						longerStyles += "\n\tStyle '"+results[i].name+"' - "+results[i].time+" ms";
+					else
+						oneSecondRequests ++;
+				}
+				
+				speedText += ("\n\t"+oneSecondRequests+" styles took 1 ms");
+				
+				speedText += ("\n\tStyle requests > 1 ms:");
+				speedText += (longerStyles);
+			}
+			
+			private function runTest(event : Event):void
+			{
+				if((event.target as TabNavigator).selectedIndex == 2 && cssEditorField.text != "")
+				{
+					startSpeedTest(cssEditorField.text);
+				}
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:layout>
+		<s:BasicLayout/>
+	</s:layout>
+	
+	<fx:Style source="FCSSEditor.css"/>
+	
+	<s:Label text="F*CSS Editor" top="9" left="8"/>
+	<s:HGroup height="22" top="33" left="11.5" width="413">
+		<s:TextInput id="fileInputField" width="261"/>
+		<s:Button label="Browse" click="onBrowseClick(event)"/>
+		<s:Button id="loadButton" label="Load"/>
+	</s:HGroup>
+	<mx:TabNavigator left="9" right="18" top="67" bottom="50" change="runTest(event)">
+		<s:NavigatorContent label="Selectors" width="100%" height="100%">
+			<mx:Canvas horizontalScrollPolicy="off" verticalScrollPolicy="auto" right="0" left="0" top="0" bottom="0">
+				<mx:Accordion id="selectorsField" left="4" right="2" top="3" bottom="6">
+				</mx:Accordion>
+			</mx:Canvas>
+		</s:NavigatorContent>
+		<s:NavigatorContent label="CSS Editor" width="100%" height="100%">
+			<mx:TextArea id="cssEditorField" text="{cssText}"
+						 top="10" bottom="10" right="10" left="10" 
+						 verticalScrollPolicy="auto"/>
+		</s:NavigatorContent>
+		<s:NavigatorContent label="Speed Test" width="100%" height="100%">
+			<mx:TextArea id="speedTestField" text="{speedText}"
+						 top="10" bottom="10" right="10" left="10" 
+						 verticalScrollPolicy="auto"/>
+		</s:NavigatorContent>
+	</mx:TabNavigator>
+	<s:HGroup height="31" width="135" right="18" bottom="10" gap="20">
+		<mx:CheckBox id="tidyFlag" label="Tidy"  labelPlacement="left"/>
+		<s:Button label="Save" click="onSaveClick(event)"/>
+	</s:HGroup>
+</s:WindowedApplication>

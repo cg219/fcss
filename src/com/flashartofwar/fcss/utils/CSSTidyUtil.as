@@ -16,6 +16,10 @@ package com.flashartofwar.fcss.utils
 	{
 
 		protected static const COMPRESS_CSS:RegExp = /\s*([@{}:;,]|\)\s|\s\()\s*|\/\*([^*\\\\]|\*(?!\/))+\*\/|[\n\r\t]|(px)|(%)/g;
+		protected static const OPENING_BRACKET:RegExp = /({)/g;
+		protected static const SINGLE_CSS_LINE:RegExp = /(;)/g;
+		protected static const CSS_PROPERTY_DIVIDER:RegExp = /(:)/g;
+		protected static const CLOSING_BRACKET:RegExp = /\t(})/g;
 
 		/**
 		 * <p>This uses regex to remove spaces, breaks, "px" and other items
@@ -28,6 +32,15 @@ package com.flashartofwar.fcss.utils
 		public static function tidy(cssText:String):String
 		{
 			return cssText.replace(COMPRESS_CSS, "$1");
+		}
+		
+		public static function format(cssText:String):String
+		{
+			var unTidyText:String = cssText.replace(OPENING_BRACKET, "\n$1\n\t");
+			unTidyText = unTidyText.replace(SINGLE_CSS_LINE, "$1\n\t");
+			unTidyText = unTidyText.replace(CSS_PROPERTY_DIVIDER, " $1 ");
+			unTidyText = unTidyText.replace(CLOSING_BRACKET, "$1\n\n");
+			return unTidyText;
 		}
 	}
 }

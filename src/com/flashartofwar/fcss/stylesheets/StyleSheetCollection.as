@@ -78,7 +78,7 @@ package com.flashartofwar.fcss.stylesheets
 		public function get baseStyleSheet():IStyleSheet
 		{
 			if (!styleSheets[baseStyleSheetName])
-				addStyleSheet(baseStyleSheetName, new StyleSheet());
+				addStyleSheet(baseStyleSheetName, new FStyleSheet());
 
 			return styleSheets[baseStyleSheetName];
 		}
@@ -148,7 +148,7 @@ package com.flashartofwar.fcss.stylesheets
 		 */
 		public function parseCSS(CSSText:String, compressText:Boolean = true):void
 		{
-			var styleSheet:StyleSheet = new StyleSheet();
+			var styleSheet:FStyleSheet = new FStyleSheet();
 			styleSheet.parseCSS(CSSText, compressText);
 
 			addStyleSheet(defaultSheetName + (totalStyleSheets + 1), styleSheet);
@@ -172,7 +172,7 @@ package com.flashartofwar.fcss.stylesheets
 		 */
 		public function removeStyleSheet(id:String):IStyleSheet
 		{
-			var styleSheet:StyleSheet = styleSheets[id];
+			var styleSheet:FStyleSheet = styleSheets[id];
 			delete styleSheets[id];
 			_totalSheets--;
 			return styleSheet;
