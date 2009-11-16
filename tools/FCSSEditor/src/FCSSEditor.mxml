@@ -19,6 +19,10 @@
 			import mx.containers.TabNavigator;
 			import mx.containers.VBox;
 			import mx.controls.Alert;
+			import mx.controls.textClasses.TextRange;
+			
+			import net.anirudh.as3syntaxhighlight.CodePrettyPrint;
+			import net.anirudh.as3syntaxhighlight.PseudoThread;
 			
 			import spark.components.NavigatorContent;
 			
@@ -52,6 +56,11 @@
 				fileInputField.text = file.nativePath;
 			}
 			
+			/**
+			 * 
+			 * Load a CSS file from the system.
+			 * 
+			 **/
 			private function loadFromFile():void
 			{	
 				cssFile.addEventListener(Event.COMPLETE, onFileLoaded, false, 0 , true);
@@ -59,6 +68,11 @@
 				isURL = true;
 			}
 			
+			/**
+			 * 
+			 * Load CSS file from a url.
+			 * 
+			 **/
 			private function loadFromURL(url : String):void
 			{
 				if(url == null) Alert.show("Please Enter the URL to the CSS file for select one from your computer.", "Oops No File Specified.");
@@ -75,6 +89,11 @@
 				cssText = css;
 			}
 			
+			/**
+			 * 
+			 * Save the file to the file system.
+			 * 
+			 **/
 			private function saveFile():void
 			{
 				var savedCSSFile : File = new File();
@@ -82,14 +101,22 @@
 				
 				if(tidyFlag.selected)
 				{
-					savedCSSFile.save(CSSTidyUtil.tidy(cssEditorField.text), "editedCSS.css");
+					savedCSSFile.save(CSSTidyUtil.tidy(cssText), "editedCSS.css");
 				}
 				else
 				{
-					savedCSSFile.save(cssEditorField.text, "editedCSS.css");
+					savedCSSFile.save(cssText, "editedCSS.css");
 				}
 			}
 			
+			/**
+			 * 
+			 * Checks if the CSS being loaded is compressed. If so, it will be uncompressed.
+			 * 
+			 * @param cssData CSS file to be checked.
+			 * @return <code>String</code> Uncompressed CSS
+			 * 
+			 **/
 			private function checkCSS(cssData:String):String
 			{
 				var regEx:RegExp = /(\s)/;
@@ -107,6 +134,13 @@
 				return css;
 			}
 			
+			/**
+			 * 
+			 * Fills in the Selector window.
+			 * 
+			 * @param css CSS that is used to populate the selector window.
+			 * 
+			 **/
 			private function populateSelectors(css:String):void
 			{
 				var stylesSheet:FStyleSheet = new FStyleSheet();
@@ -122,19 +156,24 @@
 				{
 					trace(styles[i]);
 					addField(styles[i]);
-					}
 				}
+			}
 			
+			/**
+			 * 
+			 * Adds a new VBox to the Selector Window.
+			 * 
+			 * @param name Labelfor the VBox.
+			 * 
+			 **/
 			private function addField(name : String):void
 			{
 				var container:VBox = new VBox();
-				//var dataGrid:DataGrid = new DataGrid();
 				
 				container.label = name;
 				container.width = selectorsField.width;
 				container.height = 10;
 				
-				//form.addChild(dataGrid);
 				selectorsField.addChild(container);
 			}
 			
@@ -188,6 +227,14 @@
 				fileInputField.text = "";
 				startSpeedTest(css);
 				populateEditorPane(css);
+				populateSelectors(css);
+			}
+			
+			protected function onUpdateText(event : Event):void
+			{
+				cssText = cssEditorField.text;
+				codeHighlight();
+				trace("updated");
 			}
 			
 			
@@ -283,10 +330,197 @@
 			
 			private function runTest(event : Event):void
 			{
-				if((event.target as TabNavigator).selectedIndex == 2 && cssEditorField.text != "")
+				if((event.target as TabNavigator).selectedIndex == 2 && cssText != "")
 				{
-					startSpeedTest(cssEditorField.text);
+					startSpeedTest(cssText);
 				}
+			}
+			
+			
+			
+			
+			private var cssString:String =".spl {font-family:sandboxcode;color: #4f94cd;} .str { font-family:sandboxcode; color: #880000; } .kwd { font-family:sandboxcode; color: #000088; } .com { font-family:sandboxcode; color: #008800; } .typ { font-family:sandboxcode; color: #0068CF; } .lit { font-family:sandboxcode; color: #006666; } .pun { font-family:sandboxcode; color: #666600; } .pln { font-family:sandboxcode; color: #222222; } .tag { font-family:sandboxcode; color: #000088; } .atn { font-family:sandboxcode; color: #660066; } .atv { font-family:sandboxcode; color: #880000; } .dec { font-family:sandboxcode; color: #660066; } ";
+			private var codeStyle:StyleSheet;
+			private var codePrettyPrint:CodePrettyPrint;
+			private var codeTimer:Timer;
+			private var asyncStop:Boolean;
+			private var asyncRunning:Boolean;
+			private var codeStylePF:StyleSheet;
+			private var srclenPF:int;
+			private var arrPF:Array;
+			private var lenPF:int;
+			private var firstNodePF:Boolean;
+			private var firstIndexPF:int;
+			private var pfasyncrunning:Boolean;
+			private var pfasyncstop:Boolean;
+			private var desclenPF:int;
+			private var colorThread:PseudoThread;
+			[Bindable]
+			private var asyncCodeState:String;
+			
+			private function codeHighlight():void
+			{
+				if ( !codeTimer )
+				{
+					codeTimer = new Timer(200,1);
+					codeTimer.addEventListener(TimerEvent.TIMER, doPrettyPrint);
+					
+				}	
+				
+				if ( codeTimer.running )
+				{
+					codeTimer.stop();
+				}
+				codeTimer.reset();
+				// wait for some time to see if we need to highlight or not
+				codeTimer.start();
+			}
+			
+			private function doPrettyPrint(event:TimerEvent=null):void
+			{
+				if ( !codeStyle )
+				{
+					codeStyle = new StyleSheet();
+					codePrettyPrint = new CodePrettyPrint();
+					codeStyle.parseCSS(cssString);
+				}
+				
+				if ( codePrettyPrint.asyncRunning )
+				{
+					codePrettyPrint.prettyPrintStopAsyc = true;
+					callLater(doPrettyPrint);
+					return;
+				}
+				
+				if ( pfasyncrunning )
+				{
+					pfasyncstop = true;
+					callLater(doPrettyPrint);
+					return;
+				}	
+				codeHighlightInPlace();
+				
+			}
+			
+			private function pfinit(startIdx:int, endIdx:int):void
+			{
+				codeStylePF = codeStyle;
+				srclenPF = endIdx - startIdx;
+				arrPF = codePrettyPrint.mainDecorations;
+				lenPF = arrPF.length;
+				desclenPF = cssText.length;
+				firstNodePF = false;
+				firstIndexPF = 0;
+				pfasyncrunning = false;
+				pfasyncstop = false;	
+			}
+			
+			private function processFormattedCodeAsync(startIdx:int, endIdx:int, completeFn:Function, optIdx:int=0):Boolean
+			{			
+				trace("process");
+				if ( pfasyncstop )
+				{
+					pfasyncrunning = false;
+					pfasyncstop = false;
+					return false;
+				}
+				pfasyncrunning = true;
+				if ( arrPF == null || srclenPF < 1 ) 
+				{
+					pfasyncrunning = false;
+					return false;
+				}
+				trace("color worker " + optIdx);
+				var tr:TextRange;
+				var thecolor:Object;
+				var i:int = optIdx;
+				if ( i > 0 && i % 5 == 0 )
+				{
+					asyncCodeState = "Coloring (" + int((i / lenPF) * 100) + "%)...";
+				}
+				if ( i < lenPF )
+				{
+					/* find first node */
+					if ( arrPF[i] == 0 && firstNodePF == false )
+					{        
+						firstNodePF = true;					
+						return true;
+					}
+					else if ( arrPF[i] == 0 && firstNodePF == true )
+					{
+						firstNodePF = false;
+						firstIndexPF = i;
+						
+					} 
+					if ( i - 2 > 0 )
+					{
+						if ( arrPF[i-2]  != arrPF[i] && arrPF[i] < cssText.length )
+						{
+							tr = new TextRange(cssEditorField, false, arrPF[i-2] + startIdx, arrPF[i] + startIdx);
+							thecolor = codeStylePF.getStyle("." + arrPF[i-1]).color;
+							tr.color = thecolor;
+						}
+						
+					}
+					return true;
+					
+					
+				}
+				if ( i > 0 )
+				{
+					i -= 2;
+					if ( arrPF[i] + startIdx < endIdx )
+					{
+						tr = new TextRange(cssEditorField, false, arrPF[i] + startIdx, endIdx);
+						thecolor = codeStylePF.getStyle("." + arrPF[i+1]).color;            
+						var totlen:int = cssText.length;
+						if ( totlen >= endIdx )
+							tr.color = thecolor;
+						
+					}
+				}
+				if ( completeFn != null )
+					completeFn();
+				trace("color worker done");
+				pfasyncrunning = false;
+				return false;			
+				
+			}
+			
+			private function codePFComplete():void
+			{
+				asyncCodeState = "";
+			}
+			
+			private function codeInPlaceComplete():void
+			{	
+				asyncCodeState = "Coloring...";
+				if ( pfasyncrunning )
+				{
+					pfasyncstop = true;
+					callLater(codeInPlaceComplete);
+					return;
+				}
+				asyncRunning = false;
+				
+				pfinit(0, cssText.length);
+				colorThread = new PseudoThread(this.systemManager, processFormattedCodeAsync, this, [0, cssText.length, codePFComplete, 0], 3, 2);
+			}
+			
+			private function lexInt(idx:int, total:int):void
+			{
+				if ( idx > 0 && idx % 5 == 0 )
+				{
+					asyncCodeState = "Lexing (" + int((idx / total) * 100) + "%)...";
+				}
+			}
+			
+			private function codeHighlightInPlace():void
+			{
+				asyncRunning = true;
+				asyncCodeState = "Lexing...";
+				codePrettyPrint.prettyPrintAsync(cssText, null, codeInPlaceComplete, lexInt, this.systemManager);
+				
 			}
 			
 		]]>
@@ -314,7 +548,7 @@
 		<s:NavigatorContent label="CSS Editor" width="100%" height="100%">
 			<mx:TextArea id="cssEditorField" text="{cssText}"
 						 top="10" bottom="10" right="10" left="10" 
-						 verticalScrollPolicy="auto"/>
+						 verticalScrollPolicy="auto" change="onUpdateText(event)"/>
 		</s:NavigatorContent>
 		<s:NavigatorContent label="Speed Test" width="100%" height="100%">
 			<mx:TextArea id="speedTestField" text="{speedText}"
